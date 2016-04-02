@@ -24,10 +24,13 @@ public class URLSessionTaskOperation: Operation {
     }
 
     public let task: NSURLSessionTask
-
+    private var hasFinished: Bool = false
+    private let lock: NSLock
+    
     public init(task: NSURLSessionTask) {
         assert(task.state == .Suspended, "NSURLSessionTask must be suspended, not \(task.state)")
         self.task = task
+        self.lock = NSLock()
         super.init()
         addObserver(CancelledObserver { _ in
             task.cancel()
@@ -43,10 +46,19 @@ public class URLSessionTaskOperation: Operation {
     public override func observeValueForKeyPath(keyPath: String?, ofObject object: AnyObject?, change: [String : AnyObject]?, context: UnsafeMutablePointer<Void>) {
         guard context == &URLSessionTaskOperationKVOContext else { return }
 
-        if object === task && task.state == .Completed  && keyPath == KeyPath.State.rawValue {
+        /**
+         *  The task.state could be set to .Complete firing this logic multiple times.
+         *  Use a lock and the hasFinished flag to ensure this only happens once.
+         */
+//        lock.lock()
+        
+        if object === task && task.state == .Completed && keyPath == KeyPath.State.rawValue && !hasFinished {
+//            hasFinished = true
             task.removeObserver(self, forKeyPath: KeyPath.State.rawValue)
             finish()
         }
+        
+//        lock.unlock()
     }
 }
 
